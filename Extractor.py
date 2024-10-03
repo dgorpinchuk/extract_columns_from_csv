@@ -7,7 +7,7 @@ def main():
     columns = []
     col_count = 0
     print("Введите названия столбцов по одному. Введите 'готово', когда закончите")
-    
+
     while True:
         col_name = input("Введите название столбца: ").strip()
         col_count += 1
@@ -44,7 +44,7 @@ def main():
             # Convert the 'UID' column to string type
             df = df.astype({"UID": str})
 
-        # Step 5: Save the result as result.xlsx    
+        # Step 5: Save the result as result.xlsx
         output_file = "result.xlsx"
         df.to_excel(output_file, index=False)
         print(f"Итоговый файл сохранен")
