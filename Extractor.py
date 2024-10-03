@@ -39,7 +39,12 @@ def main():
             df = df.drop_duplicates()
             print("Дубликаты удалены")
 
-        # Step 5: Save the result as result.xlsx
+        # Check if column 'UID' exists in the DataFrame
+        if 'UID' in df.columns:
+            # Convert the 'UID' column to string type
+            df = df.astype({"UID": str})
+
+        # Step 5: Save the result as result.xlsx    
         output_file = "result.xlsx"
         df.to_excel(output_file, index=False)
         print(f"Итоговый файл сохранен")
