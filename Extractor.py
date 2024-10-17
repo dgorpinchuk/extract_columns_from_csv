@@ -1,56 +1,123 @@
+import wx
 import pandas as pd
-import tkinter as tk
-from tkinter import filedialog
+import os
+
+class CSVColumnExtractor(wx.Frame):
+    def __init__(self, *args, **kw):
+        super(CSVColumnExtractor, self).__init__(*args, **kw)
+
+        self.columns = []
+        self.max_height = 600  # Set a reasonable max height for the window
+        self.InitUI()
+
+    def InitUI(self):
+        panel = wx.Panel(self)
+
+        # Main layout
+        self.vbox = wx.BoxSizer(wx.VERTICAL)
+
+        # Instruction text
+        instruction_text = wx.StaticText(panel, label="Введите названия столбцов по одному. Введите 'готово', когда закончите")
+        self.vbox.Add(instruction_text, flag=wx.EXPAND | wx.ALL, border=10)
+
+        # Text input for column name
+        self.column_input = wx.TextCtrl(panel)
+        self.vbox.Add(self.column_input, flag=wx.EXPAND | wx.ALL, border=10)
+
+        # Button to add column
+        add_button = wx.Button(panel, label="Добавить столбец")
+        add_button.Bind(wx.EVT_BUTTON, self.OnAddColumn)
+        self.vbox.Add(add_button, flag=wx.EXPAND | wx.ALL, border=10)
+
+        # Listbox to display added columns, make it vertically stretchable
+        self.column_list = wx.ListBox(panel)
+        self.vbox.Add(self.column_list, proportion=1, flag=wx.EXPAND | wx.ALL, border=10)
+
+        # Button to finish column entry
+        finish_button = wx.Button(panel, label="Готово")
+        finish_button.Bind(wx.EVT_BUTTON, self.OnFinish)
+        self.vbox.Add(finish_button, flag=wx.EXPAND | wx.ALL, border=10)
+
+        panel.SetSizer(self.vbox)
+
+        # Set initial window size and position
+        self.SetTitle('CSV Column Extractor')
+        self.SetSize((400, 200))  # Initial size
+        self.Centre()
+
+    def OnAddColumn(self, event):
+        col_name = self.column_input.GetValue().strip()
+        if col_name.lower() == 'готово':
+            return
+        if col_name:
+            self.columns.append(col_name)
+            self.column_list.Append(col_name)
+            self.column_input.Clear()
+
+            # Dynamically adjust the window size when a new column is added
+            current_size = self.GetSize()
+            new_height = current_size[1] + 30  # Increase height by 30 pixels per new column
+
+            # Limit the height to a maximum to avoid excessive growth
+            if new_height <= self.max_height:
+                self.SetSize(current_size[0], new_height)
+
+            # Resize and refresh layout to adjust the ListBox size
+            self.Layout()
+
+    def OnFinish(self, event):
+        if not self.columns:
+            wx.MessageBox('Необходимо добавить хотя бы один столбец.', 'Ошибка', wx.OK | wx.ICON_ERROR)
+            return
+
+        # Show file dialog to select CSV file
+        with wx.FileDialog(self, "Выберите CSV файл", wildcard="CSV files (*.csv)|*.csv",
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return  # User cancelled
+
+            csv_file = fileDialog.GetPath()
+
+        if not csv_file or not os.path.exists(csv_file):
+            wx.MessageBox('Файл не был выбран. Завершение...', 'Ошибка', wx.OK | wx.ICON_ERROR)
+            return
+
+        # Try to open the CSV and extract columns
+        try:
+            df = pd.read_csv(csv_file, usecols=self.columns)
+            wx.MessageBox('Столбцы извлечены успешно', 'Информация', wx.OK | wx.ICON_INFORMATION)
+
+            # Ask to remove duplicates
+            dlg = wx.MessageDialog(None, "Удалить дублирующиеся строки?", "Вопрос", wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
+            remove_duplicates = dlg.ShowModal() == wx.ID_YES
+            dlg.Destroy()
+
+            if remove_duplicates:
+                df = df.drop_duplicates()
+                wx.MessageBox('Дубликаты удалены', 'Информация', wx.OK | wx.ICON_INFORMATION)
+
+            # Convert 'UID' column to string type if exists
+            if 'UID' in df.columns:
+                df = df.astype({"UID": str})
+
+            # Save the result to the same directory as the input file
+            input_dir = os.path.dirname(csv_file)  # Get the input file's directory
+            output_file = os.path.join(input_dir, "result.xlsx")  # Save the result in the same folder
+            df.to_excel(output_file, index=False)
+            wx.MessageBox(f'Итоговый файл сохранен как {output_file}', 'Информация', wx.OK | wx.ICON_INFORMATION)
+
+            # Close the window after processing is complete
+            self.Close()
+
+        except Exception as e:
+            wx.MessageBox(f'Возникла ошибка: {e}', 'Ошибка', wx.OK | wx.ICON_ERROR)
 
 def main():
-    # Step 1: Ask user for column names one by one
-    columns = []
-    col_count = 0
-    print("Введите названия столбцов по одному. Введите 'готово', когда закончите")
-
-    while True:
-        col_name = input("Введите название столбца: ").strip()
-        col_count += 1
-        print(f"🔸Название столбца {col_count}: {col_name}")
-        if col_name.lower() == 'готово':
-            break
-        columns.append(col_name)
-
-    # Step 2: Use a modal window to select the CSV file
-    root = tk.Tk()
-    root.withdraw()  # Hide the root window
-    root.attributes('-topmost', True)  # Bring window to front
-    root.lift()  # Lift the window above others
-    root.focus_force()  # Focus on the window
-    csv_file = filedialog.askopenfilename(title="Выберите CSV файл", filetypes=[("Файлы CSV", "*.csv")])
-
-    if not csv_file:  # If no file was selected
-        print("Файл не был выбран. Завершение...")
-        return
-
-    try:
-        # Step 3: Open the CSV file and extract specified columns
-        df = pd.read_csv(csv_file, usecols=columns)
-        print("Столбцы извлечены успешно")
-
-        # Step 4: Ask to remove duplicates
-        remove_duplicates = input("Удалить дублирующиеся строки? (д/н): ").strip().lower()
-        if remove_duplicates == 'д':
-            df = df.drop_duplicates()
-            print("Дубликаты удалены")
-
-        # Check if column 'UID' exists in the DataFrame
-        if 'UID' in df.columns:
-            # Convert the 'UID' column to string type
-            df = df.astype({"UID": str})
-
-        # Step 5: Save the result as result.xlsx
-        output_file = "result.xlsx"
-        df.to_excel(output_file, index=False)
-        print(f"Итоговый файл сохранен")
-
-    except Exception as e:
-        print(f"❌ Возникла ошибка: {e}")
+    app = wx.App(False)
+    frame = CSVColumnExtractor(None)
+    frame.Show()
+    app.MainLoop()
 
 if __name__ == "__main__":
     main()
